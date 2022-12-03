@@ -1,7 +1,6 @@
-import {Identifier} from '../types';
-import {Id, State} from './types';
+import {Id, State, Identifier} from './types';
 
-export const neighbors = ([x, y]: Identifier): Identifier[] => {
+export const getNeighbors = ([x, y]: Identifier): Identifier[] => {
   // TODO: Maybe a randomizer instead of a predefined pattern of expansion?
 
   const inner: Identifier[] = [
@@ -22,7 +21,7 @@ export const neighbors = ([x, y]: Identifier): Identifier[] => {
 };
 
 export const neighborSelector = (identifier: Identifier) => (state: State) => {
-  const identifiers = neighbors(identifier);
+  const identifiers = getNeighbors(identifier);
 
   const field = state.field;
 
