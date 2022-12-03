@@ -1,5 +1,6 @@
 export {useZustand} from './zustand';
 
-export type {State, Id} from './types';
+export type {State, Id, Cell, Field, Identifier} from './types';
+export {AppStatus, Status} from './constants';
 
-export {neighbors, neighborSelector} from './neighbors';
+export {getNeighbors, neighborSelector} from './getNeighbors';

@@ -2,7 +2,8 @@ import styled from '@emotion/styled';
 import React from 'react';
 
 import {Game} from './Game';
-import {useZustand} from './zustand';
+import {System} from './System';
+import {AppStatus, useZustand} from './zustand';
 
 const Container = styled.div({
   display: 'grid',
@@ -10,20 +11,25 @@ const Container = styled.div({
 });
 
 export const App = () => {
-  const field = useZustand((state) => state.field);
-  const start = useZustand((state) => state.start);
+  const define = useZustand((state) => state.define);
+  const unset = useZustand((state) => state.status === AppStatus.Unset);
 
   React.useEffect(() => {
-    start({rows: 30, columns: 20});
+    if (unset) {
+      define({rows: 40, columns: 40});
+    }
   }, []);
 
-  if (!field) {
+  if (unset) {
     return <pre>L O A D I N G . . .</pre>;
   }
 
   return (
-    <Container>
-      <Game field={field} />
-    </Container>
+    <>
+      <System />
+      <Container>
+        <Game />
+      </Container>
+    </>
   );
 };

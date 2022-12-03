@@ -1,10 +1,11 @@
 import create from 'zustand';
-import {combine} from 'zustand/middleware';
+import {combine, subscribeWithSelector} from 'zustand/middleware';
 import {immer} from 'zustand/middleware/immer';
-import {Identifier} from '../types';
+import {fieldToState} from './fieldToState';
 import {lay} from './layer';
-import {neighborSelector} from './neighbors';
-import {State, Status, Id, Cell} from './types';
+import {getNeighbors, neighborSelector} from './getNeighbors';
+import {State, Id, Identifier} from './types';
+import {AppStatus, Status} from './constants';
 
 const initial: State = {
   byId: {},
@@ -12,113 +13,97 @@ const initial: State = {
   clears: 0,
   mines: 0,
   opened: 0,
+  rows: 0,
+  columns: 0,
+  status: AppStatus.Unset,
+  difficulty: 0.22, // expert
 };
 
-type FilledState = Required<State>;
-
 export const useZustand = create(
-  immer(
-    combine(initial, (set) => ({
-      start: (config: {rows: number; columns: number; difficulty?: number}) =>
-        set(() => {
-          let id = 0;
+  subscribeWithSelector(
+    immer(
+      combine(initial, (set, get) => ({
+        define: (settings: {
+          rows: number;
+          columns: number;
+          difficulty?: number;
+        }) => {
+          set({
+            ...settings,
+            status: AppStatus.Defined,
+          });
+        },
+        start: (center: Identifier) =>
+          set((state) => {
+            const {rows, columns, difficulty} = state;
+            const config = {rows, columns, difficulty, center};
 
-          return lay(config).reduce<State>(
-            (byRow, fieldRow, index) => {
-              return fieldRow.reduce<State>(
-                (byCell, value) => {
-                  const cell: Cell = {
-                    contains: value,
-                    status: Status.Unopened,
-                  };
+            const field = lay(config);
 
-                  if (value === 0 && byCell.zero === undefined) {
-                    byCell.zero = id;
-                  }
+            const next = fieldToState({field, center});
 
-                  if (Number.isNaN(value)) {
-                    byCell.mines += 1;
-                  } else {
-                    byCell.clears += 1;
-                  }
+            return {
+              ...next,
+              // From the opening move
+              opened: 1,
+            };
+          }),
+        open: (...ids: Id[]) => {
+          set((state) => {
+            const open = (id: Id) => {
+              const cell = state.byId[id];
 
-                  byCell.field![index].push(id);
-                  byCell.byId[id] = cell;
+              const {status, contains} = cell;
 
-                  id += 1;
+              const numeric = !Number.isNaN(contains);
 
-                  return byCell;
-                },
-                {
-                  ...byRow,
-                  field: [...byRow.field!, []],
-                },
-              );
-            },
-            {
-              byId: {},
-              field: [],
-              clears: 0,
-              mines: 0,
-              opened: 0,
-            },
-          );
-        }),
-      meet: (identifier: Identifier) => {
-        set((state) => {
-          const [x, y] = identifier;
+              if (status !== Status.Opened && numeric) {
+                state.opened += 1;
+              }
 
-          const id = state.field![x][y];
+              if (status === Status.Unopened) {
+                cell.status = Status.Opened;
+              } else if (status === Status.Flagged && numeric) {
+                cell.status = Status.Wrong;
+              }
+            };
 
-          const adjacentIds = neighborSelector(identifier)(state);
-
-          state.byId[id].neighbors = adjacentIds;
-        });
-      },
-      open: (...ids: Id[]) => {
-        set((state) => {
-          const open = (id: Id) => {
+            ids.forEach(open);
+          });
+        },
+        flag: (id: Id) => {
+          set((state) => {
             const cell = state.byId[id];
 
-            const status = cell.status;
+            const previous = cell.status;
 
-            if (status === Status.Unopened) {
-              cell.status = Status.Opened;
-            } else if (
-              status === Status.Flagged &&
-              !Number.isNaN(cell.contains)
-            ) {
-              cell.status = Status.Wrong;
+            if (previous === Status.Flagged) {
+              cell.status = Status.Unopened;
+              return;
             }
 
-            state.opened += 1;
-          };
+            if (previous === Status.Unopened) {
+              cell.status = Status.Flagged;
+              return;
+            }
+          });
+        },
+        neighbors: (identifier: Identifier) => {
+          const field = get().field!;
 
-          if (state.opened === 0 && state.byId[ids[0]].contains !== 0) {
-            open(state.zero!);
-            return;
-          }
+          const maybeNeighbors = getNeighbors(identifier);
 
-          ids.forEach(open);
-        });
-      },
-      flag: (id: Id) => {
-        set((state) => {
-          const cell = state.byId[id];
+          return maybeNeighbors.reduce<Id[]>((neighbors, [x, y]) => {
+            const id = field[x]?.[y];
 
-          const previous = cell.status;
+            if (id !== undefined) {
+              neighbors.push(id);
+            }
 
-          if (previous === Status.Flagged) {
-            cell.status = Status.Unopened;
-            return;
-          }
-
-          if (previous === Status.Unopened) {
-            cell.status = Status.Flagged;
-            return;
-          }
-        });
-      },
-    })),
+            return neighbors;
+          }, []);
+        },
+      })),
+    ),
   ),
 );

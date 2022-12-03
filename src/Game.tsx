@@ -1,20 +1,28 @@
 import styled from '@emotion/styled';
 import React from 'react';
-import {Cell} from './Cell';
-import {State} from './zustand';
+import shallow from 'zustand/shallow';
+import {Cell} from './Cell/Cell';
+import {useZustand, Identifier} from './zustand';
 
 const Grid = styled.div({
   display: 'grid',
 });
 
-export const Game: React.FC<{field: NonNullable<State['field']>}> = ({
-  field,
-}) => {
+export const Game: React.FC = () => {
+  // field cannot be undefined at this point
+  const dimensions = useZustand(({rows, columns}) => [rows, columns], shallow);
+
+  const [rows, columns] = React.useMemo(() => {
+    return dimensions.map((size) => Array.from({length: size}));
+  }, [dimensions]);
+
   return (
     <Grid>
-      {field.map((row, x) => {
-        return row.map((_, y) => {
-          return <Cell key={`${x}${y}`} identifier={[x, y]} />;
+      {rows.map((_row, x) => {
+        return columns.map((_column, y) => {
+          const identifier: Identifier = [x, y];
+
+          return <Cell key={identifier.toString()} identifier={identifier} />;
         });
       })}
     </Grid>
